@@ -8,3 +8,4 @@ registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
 [dev-dependencies]
+promise = "evaera/promise@4.0.0"
