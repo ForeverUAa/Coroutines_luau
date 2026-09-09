@@ -9,15 +9,17 @@ export type Coroutine<T...> = {
 local Coroutine = {}
 
 function Coroutine.new<T...>(fn: (T...) -> ()): Coroutine<T...>
-	local self = {} :: any
+    local thread = coroutine.create(fn)
 
-	self.thread = coroutine.create(fn)
+    local self: Coroutine<T...> = {
+        thread = thread,
 
-	function self.resume(self: Coroutine<T...>, ...)
-		return coroutine.resume(self.thread, ...)
-	end
+        resume = function(self, ...)
+            return coroutine.resume(self.thread, ...)
+        end,
+    }
 
-	return self
+    return self
 end
 
 function Coroutine.yield(...)

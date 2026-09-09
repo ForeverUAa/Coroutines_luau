@@ -1,9 +1,15 @@
 {
-  "name": "luau-fuckery",
-  "tree": {
-    "$path": "src",
-    "DevPackages": {
-      "$path": "DevPackages"
+    "name": "coroutines-jest",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Project": {
+                "$path": "src"
+            },
+            "DevPackages": {
+                "$path": "DevPackages"
+            }
+        }
     }
-  }
 }
