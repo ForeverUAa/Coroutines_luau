@@ -13,7 +13,7 @@ function Coroutine.new<T...>(fn: (T...) -> ()): Coroutine<T...>
 	assert(type(fn) == "function", "Coroutine.new expects a function")
 
 	local self: Coroutine<T...> = {
-		thread = coroutine.create(fn),
+		thread = Coroutine.thread(fn),
 
 		resume = function(self, ...)
 			assert(
