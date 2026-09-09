@@ -62,42 +62,32 @@ function Coroutine.co_wrap(fn)
 end
 
 function Coroutine.awaitCancellation()
-	local co = coroutine.running()
+    local co = coroutine.running()
 
-	assert(
-		co,
-		"Coroutine.awaitCancellation must be called from within a coroutine"
-	)
+    assert(
+        co,
+        "Coroutine.awaitCancellation must be called from within a coroutine"
+    )
 
-	local token = CancellationToken.new()
+    local token = CancellationToken.new()
 
-	while not token:isCancelled() do
-		local operation = Coroutine.co_await(
-			Awaitable.new(function()
-				return token:isCancelled()
-			end)
-		)
+    while not token:isCancelled() do
+        local operation = Coroutine.co_await(
+            Awaitable.new(function()
+                return token:isCancelled()
+            end)
+        )
 
-		if operation == "cancel" then
-			token:cancel()
-		end
-	end
+        if operation == "cancel" then
+            token:cancel()
+        end
+    end
 end
 
-function Coroutine.thread()
-	local token = CancellationToken.new()
+function Coroutine.thread<T...>(fn: (T...) -> ()): Coroutine<T...>
+    assert(type(fn) == "function", "Coroutine.thread expects a function")
 
-	while not token:isCancelled() do
-		local operation = Coroutine.co_await(
-			Awaitable.new(function()
-				return token:isCancelled()
-			end)
-		)
-
-		if operation == "cancel" then
-			token:cancel()
-		end
-	end
+    return Coroutine.new(fn)
 end
 
 return Coroutine
