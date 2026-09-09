@@ -1,6 +1,8 @@
 local CancellationToken = require(script.cancellationToken)
 local Awaitable = require(script.awaitable)
 
+local Promise = require(script.Parent.DevPackages.Promise)
+
 export type Coroutine<T...> = {
 	thread: thread,
 	resume: (self: Coroutine<T...>, T...) -> (boolean, ...any),
@@ -31,17 +33,29 @@ function Coroutine.co_await(awaitable: Awaitable)
 end
 
 function Coroutine.co_wrap(fn)
-	local co = Coroutine.new(fn)
+    return function(...)
+        local args = table.pack(...)
 
-	return function(...)
-		local results = table.pack(co:resume(...))
+        return Promise.new(function(resolve, reject)
+            local co = Coroutine.new(fn)
 
-		if not results[1] then
-			error(results[2])
-		end
+            local ok, results = xpcall(function()
+                return table.pack(co:resume(table.unpack(args, 1, args.n)))
+            end, debug.traceback)
 
-		return table.unpack(results, 2, results.n)
-	end
+            if not ok then
+                reject(results)
+                return
+            end
+
+            if not results[1] then
+                reject(results[2])
+                return
+            end
+
+            resolve(table.unpack(results, 2, results.n))
+        end)
+    end
 end
 
 function Coroutine.awaitCancellation()
