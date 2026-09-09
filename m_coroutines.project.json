@@ -1,0 +1,9 @@
+{
+  "name": "luau-fuckery",
+  "tree": {
+    "$path": "src",
+    "DevPackages": {
+      "$path": "DevPackages"
+    }
+  }
+}
