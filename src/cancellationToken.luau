@@ -1,32 +1,43 @@
-local Promise = require(script.Parent.DevPackages.Promise)
-
 local CancellationToken = {}
 CancellationToken.__index = CancellationToken
 
-function CancellationToken.new()
-	local self = setmetatable({}, CancellationToken)
+export type Token = typeof(setmetatable({
+	cancelled = false :: boolean,
+	callbacks = {} :: {() -> ()},
+}, CancellationToken))
 
-	self.promise = Promise.new(function(resolve)
-		self._resolve = resolve
-	end)
-
-	return self
+function CancellationToken.new(): Token
+	return setmetatable({
+		cancelled = false,
+		callbacks = {},
+	}, CancellationToken)
 end
 
-function CancellationToken:cancel()
-	if self:isCancelled() then
+function CancellationToken:isCancelled(): boolean
+	return self.cancelled
+end
+
+function CancellationToken:onCancel(callback: () -> ())
+	if self.cancelled then
+		callback()
 		return
 	end
 
-	self._resolve()
+	table.insert(self.callbacks, callback)
 end
 
-function CancellationToken:isCancelled()
-	return self.promise:getStatus() == Promise.Status.Resolved
-end
+function CancellationToken:cancel()
+	if self.cancelled then
+		return
+	end
 
-function CancellationToken:await()
-	return self.promise
+	self.cancelled = true
+
+	for _, callback in self.callbacks do
+		callback()
+	end
+
+	table.clear(self.callbacks)
 end
 
 return CancellationToken

@@ -35,53 +35,53 @@ end
 function Coroutine.co_await<T>(awaitable: Awaitable.Awaitable<T>): T
 	assert(awaitable ~= nil, "Coroutine.co_await expects an Awaitable")
 
-	return coroutine.yield(awaitable)
+	return awaitable:await()
 end
 
-function Coroutine.co_wrap(fn)
+function Coroutine.co_wrap<T...>(fn: (T...) -> ...any)
 	assert(type(fn) == "function", "Coroutine.co_wrap expects a function")
 
 	return function(...)
 		local args = table.pack(...)
 
 		return Promise.new(function(resolve, reject)
-			local co = Coroutine.new(fn)
+			local co = Coroutine.thread(fn)
 
-			local ok, ... = co:resume(
-				table.unpack(args, 1, args.n)
-			)
+			task.spawn(function()
+				local results = table.pack(
+					co:resume(
+						table.unpack(args, 1, args.n)
+					)
+				)
 
-			if not ok then
-				reject(...)
-				return
-			end
+				if not results[1] then
+					reject(results[2])
+					return
+				end
 
-			resolve(...)
+				resolve(table.unpack(results, 2, results.n))
+			end)
 		end)
 	end
 end
 
-function Coroutine.awaitCancellation()
-	local co = coroutine.running()
-
+function Coroutine.awaitCancellation(token: CancellationToken.Token)
 	assert(
-		co,
+		coroutine.running(),
 		"Coroutine.awaitCancellation must be called from within a coroutine"
 	)
 
-	local token = CancellationToken.new()
-
-	while not token:isCancelled() do
-		local operation = Coroutine.co_await(
-			Awaitable.new(function()
-				return token:isCancelled()
-			end)
-		)
-
-		if operation == "cancel" then
-			token:cancel()
-		end
+	if token:isCancelled() then
+		return
 	end
+
+	local awaitable = Awaitable.new()
+
+	token:onCancel(function()
+		awaitable:resolve()
+	end)
+
+	Coroutine.co_await(awaitable)
 end
 
 function Coroutine.thread<T...>(fn: (T...) -> ()): Coroutine<T...>
