@@ -1,4 +1,3 @@
-```lua
 local CancellationToken = require(script.cancellationToken)
 local Awaitable = require(script.awaitable)
 
@@ -82,4 +81,3 @@ function Coroutine.thread()
 end
 
 return Coroutine
-```
