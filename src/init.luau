@@ -45,22 +45,20 @@ function Coroutine.co_wrap<T...>(fn: (T...) -> ...any)
 		local args = table.pack(...)
 
 		return Promise.new(function(resolve, reject)
-			local co = Coroutine.thread(fn)
+			local co = Coroutine.new(fn)
 
-			task.spawn(function()
-				local results = table.pack(
-					co:resume(
-						table.unpack(args, 1, args.n)
-					)
-				)
+			local ok, ... = co:resume(
+				table.unpack(args, 1, args.n)
+			)
 
-				if not results[1] then
-					reject(results[2])
-					return
-				end
+			if not ok then
+				reject(...)
+				return
+			end
 
-				resolve(table.unpack(results, 2, results.n))
-			end)
+			if coroutine.status(co.thread) == "dead" then
+				resolve(...)
+			end
 		end)
 	end
 end
@@ -84,10 +82,10 @@ function Coroutine.awaitCancellation(token: CancellationToken.Token)
 	Coroutine.co_await(awaitable)
 end
 
-function Coroutine.thread<T...>(fn: (T...) -> ()): Coroutine<T...>
-    assert(type(fn) == "function", "Coroutine.thread expects a function")
+function Coroutine.thread<T...>(fn: (T...) -> ()): thread
+	assert(type(fn) == "function", "Coroutine.thread expects a function")
 
-    return Coroutine.new(fn)
+	return coroutine.create(fn)
 end
 
 return Coroutine

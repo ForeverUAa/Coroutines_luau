@@ -25,7 +25,7 @@ function Awaitable.new<T>(executor: ((resolve: (value: T) -> ()) -> ())?): Await
 	return self
 end
 
-function Awaitable:resolve<T>(value: T)
+function Awaitable:resolve(value)
 	if self.completed then
 		return
 	end
@@ -33,8 +33,10 @@ function Awaitable:resolve<T>(value: T)
 	self.completed = true
 	self.result = value
 
-	for _, thread in self.waiters do
-		task.spawn(coroutine.resume, thread, value)
+	for _, co in self.waiters do
+		task.spawn(function()
+			coroutine.resume(co, value)
+		end)
 	end
 
 	table.clear(self.waiters)
