@@ -1,3 +1,4 @@
+```lua
 local CancellationToken = require(script.cancellationToken)
 local Awaitable = require(script.awaitable)
 
@@ -7,11 +8,8 @@ export type Coroutine<T...> = {
 }
 
 local Coroutine = {}
-local helperFunctions = {}
 
-function Coroutine.new<T...>(
-	fn: (T...) -> ()
-): Coroutine<T...>
+function Coroutine.new<T...>(fn: (T...) -> ()): Coroutine<T...>
 	local self = {} :: any
 
 	self.thread = coroutine.create(fn)
@@ -27,55 +25,61 @@ function Coroutine.yield(...)
 	return coroutine.yield(...)
 end
 
-local function co_await(awaitable)
-    return coroutine.yield(awaitable)
+function Coroutine.co_await(awaitable: Awaitable)
+	return coroutine.yield(awaitable)
 end
 
-local function Coroutine.co_wrap(fn)
-    local co = Coroutine.new(fn)
+function Coroutine.co_wrap(fn)
+	local co = Coroutine.new(fn)
 
-    return function(...)
-        local success, ... = co:resume(...)
+	return function(...)
+		local results = table.pack(co:resume(...))
 
-        if not success then
-            error(...)
-        end
+		if not results[1] then
+			error(results[2])
+		end
 
-        return ...
-    end
+		return table.unpack(results, 2, results.n)
+	end
 end
 
-function helperFunctions.awaitCancellation()
+function Coroutine.awaitCancellation()
 	local co = coroutine.running()
 
 	if not co then
 		error("awaitCancellation must be called from within a coroutine")
 	end
 
-	if not coroutine.status(co) == "suspended" then
-		error("awaitCancellation must be called from within a suspended coroutine")
-	end
+	local token = CancellationToken.new()
 
-	while true do
-		local op = coroutine.yield()
+	while not token:isCancelled() do
+		local operation = Coroutine.co_await(
+			Awaitable.new(function()
+				return token:isCancelled()
+			end)
+		)
 
-		if op == "cancel" then
-			return
+		if operation == "cancel" then
+			token:cancel()
 		end
 	end
 end
 
 function Coroutine.thread()
-    local token = CancellationToken.new()
+	local token = CancellationToken.new()
 
-    while true do
-        local operation = coroutine.yield(token)
+	while not token:isCancelled() do
+		local operation = Coroutine.co_await(
+			Awaitable.new(function()
+				return token:isCancelled()
+			end)
+		)
 
-        if operation == "cancel" then
-            token:cancel()
-            return
-        end
-    end
+		if operation == "cancel" then
+			token:cancel()
+		end
+	end
 end
 
 return Coroutine
+```
