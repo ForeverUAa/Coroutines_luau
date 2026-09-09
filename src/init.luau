@@ -1,6 +1,5 @@
 local CancellationToken = require(script.cancellationToken)
 local Awaitable = require(script.awaitable)
-
 local Promise = require(script.Parent.DevPackages.Promise)
 
 export type Coroutine<T...> = {
@@ -11,17 +10,22 @@ export type Coroutine<T...> = {
 local Coroutine = {}
 
 function Coroutine.new<T...>(fn: (T...) -> ()): Coroutine<T...>
-    local thread = coroutine.create(fn)
+	assert(type(fn) == "function", "Coroutine.new expects a function")
 
-    local self: Coroutine<T...> = {
-        thread = thread,
+	local self: Coroutine<T...> = {
+		thread = coroutine.create(fn),
 
-        resume = function(self, ...)
-            return coroutine.resume(self.thread, ...)
-        end,
-    }
+		resume = function(self, ...)
+			assert(
+				coroutine.status(self.thread) ~= "dead",
+				"cannot resume a dead coroutine"
+			)
 
-    return self
+			return coroutine.resume(self.thread, ...)
+		end,
+	}
+
+	return self
 end
 
 function Coroutine.yield(...)
@@ -29,41 +33,41 @@ function Coroutine.yield(...)
 end
 
 function Coroutine.co_await(awaitable: Awaitable)
+	assert(awaitable ~= nil, "Coroutine.co_await expects an Awaitable")
+
 	return coroutine.yield(awaitable)
 end
 
 function Coroutine.co_wrap(fn)
-    return function(...)
-        local args = table.pack(...)
+	assert(type(fn) == "function", "Coroutine.co_wrap expects a function")
 
-        return Promise.new(function(resolve, reject)
-            local co = Coroutine.new(fn)
+	return function(...)
+		local args = table.pack(...)
 
-            local ok, results = xpcall(function()
-                return table.pack(co:resume(table.unpack(args, 1, args.n)))
-            end, debug.traceback)
+		return Promise.new(function(resolve, reject)
+			local co = Coroutine.new(fn)
 
-            if not ok then
-                reject(results)
-                return
-            end
+			local ok, ... = co:resume(
+				table.unpack(args, 1, args.n)
+			)
 
-            if not results[1] then
-                reject(results[2])
-                return
-            end
+			if not ok then
+				reject(...)
+				return
+			end
 
-            resolve(table.unpack(results, 2, results.n))
-        end)
-    end
+			resolve(...)
+		end)
+	end
 end
 
 function Coroutine.awaitCancellation()
 	local co = coroutine.running()
 
-	if not co then
-		error("awaitCancellation must be called from within a coroutine")
-	end
+	assert(
+		co,
+		"Coroutine.awaitCancellation must be called from within a coroutine"
+	)
 
 	local token = CancellationToken.new()
 
