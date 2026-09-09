@@ -2,6 +2,9 @@ local CancellationToken = require(script.cancellationToken)
 local Awaitable = require(script.awaitable)
 local Promise = require(script.Parent.DevPackages.Promise)
 
+export type Awaitable<T = any> = Awaitable.Awaitable<T>
+export type CancellationToken = CancellationToken.Token
+
 export type Coroutine<T...> = {
 	thread: thread,
 	resume: (self: Coroutine<T...>, T...) -> (boolean, ...any),
@@ -9,8 +12,20 @@ export type Coroutine<T...> = {
 
 local Coroutine = {}
 
-function Coroutine.new<T...>(fn: (T...) -> ()): Coroutine<T...>
-	assert(type(fn) == "function", "Coroutine.new expects a function")
+function Coroutine.thread<T...>(fn: (T...) -> ...any): thread
+	assert(
+		type(fn) == "function",
+		"Coroutine.thread expects a function"
+	)
+
+	return coroutine.create(fn)
+end
+
+function Coroutine.new<T...>(fn: (T...) -> ...any): Coroutine<T...>
+	assert(
+		type(fn) == "function",
+		"Coroutine.new expects a function"
+	)
 
 	local self: Coroutine<T...> = {
 		thread = Coroutine.thread(fn),
@@ -33,13 +48,19 @@ function Coroutine.yield(...)
 end
 
 function Coroutine.co_await<T>(awaitable: Awaitable.Awaitable<T>): T
-	assert(awaitable ~= nil, "Coroutine.co_await expects an Awaitable")
+	assert(
+		awaitable ~= nil,
+		"Coroutine.co_await expects an Awaitable"
+	)
 
 	return awaitable:await()
 end
 
 function Coroutine.co_wrap<T...>(fn: (T...) -> ...any)
-	assert(type(fn) == "function", "Coroutine.co_wrap expects a function")
+	assert(
+		type(fn) == "function",
+		"Coroutine.co_wrap expects a function"
+	)
 
 	return function(...)
 		local args = table.pack(...)
@@ -47,26 +68,37 @@ function Coroutine.co_wrap<T...>(fn: (T...) -> ...any)
 		return Promise.new(function(resolve, reject)
 			local co = Coroutine.new(fn)
 
-			local ok, ... = co:resume(
-				table.unpack(args, 1, args.n)
-			)
+			task.spawn(function()
+				local ok, ... = co:resume(
+					table.unpack(args, 1, args.n)
+				)
 
-			if not ok then
-				reject(...)
-				return
-			end
+				if not ok then
+					reject(...)
+					return
+				end
 
-			if coroutine.status(co.thread) == "dead" then
-				resolve(...)
-			end
+				if coroutine.status(co.thread) == "dead" then
+					resolve(...)
+				end
+			end)
 		end)
 	end
 end
 
-function Coroutine.awaitCancellation(token: CancellationToken.Token)
+function Coroutine.awaitCancellation(
+	token: CancellationToken.Token
+)
+	local co = coroutine.running()
+
 	assert(
-		coroutine.running(),
+		co,
 		"Coroutine.awaitCancellation must be called from within a coroutine"
+	)
+
+	assert(
+		token ~= nil,
+		"Coroutine.awaitCancellation expects a CancellationToken"
 	)
 
 	if token:isCancelled() then
@@ -75,17 +107,13 @@ function Coroutine.awaitCancellation(token: CancellationToken.Token)
 
 	local awaitable = Awaitable.new()
 
-	token:onCancel(function()
+	local disconnect = token:onCancel(function()
 		awaitable:resolve()
 	end)
 
 	Coroutine.co_await(awaitable)
-end
 
-function Coroutine.thread<T...>(fn: (T...) -> ()): thread
-	assert(type(fn) == "function", "Coroutine.thread expects a function")
-
-	return coroutine.create(fn)
+	disconnect()
 end
 
 return Coroutine

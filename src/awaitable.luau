@@ -4,28 +4,22 @@ Awaitable.__index = Awaitable
 export type Awaitable<T = any> = typeof(setmetatable({
 	completed = false :: boolean,
 	result = nil :: T?,
-	waiters = {} :: {thread},
+	waiters = {} :: { thread },
 }, Awaitable))
 
-function Awaitable.new<T>(executor: ((resolve: (value: T) -> ()) -> ())?): Awaitable<T>
-	local self = setmetatable({
+function Awaitable.new<T = any>(): Awaitable<T>
+	return setmetatable({
 		completed = false,
 		result = nil,
 		waiters = {},
 	}, Awaitable)
-
-	if executor then
-		task.spawn(function()
-			executor(function(value)
-				self:resolve(value)
-			end)
-		end)
-	end
-
-	return self
 end
 
-function Awaitable:resolve(value)
+function Awaitable:isCompleted(): boolean
+	return self.completed
+end
+
+function Awaitable:resolve<TValue>(value: TValue)
 	if self.completed then
 		return
 	end
@@ -33,22 +27,33 @@ function Awaitable:resolve(value)
 	self.completed = true
 	self.result = value
 
-	for _, co in self.waiters do
+	local waiters = self.waiters
+	self.waiters = {}
+
+	for _, thread in waiters do
 		task.spawn(function()
-			coroutine.resume(co, value)
+			if coroutine.status(thread) ~= "dead" then
+				local ok, err = coroutine.resume(thread, value)
+
+				if not ok then
+					warn("Awaitable failed to resume coroutine:", err)
+				end
+			end
 		end)
 	end
-
-	table.clear(self.waiters)
 end
 
-function Awaitable:await()
+function Awaitable:await(): any
 	if self.completed then
 		return self.result
 	end
 
 	local thread = coroutine.running()
-	assert(thread, "Awaitable:await must be called from a coroutine")
+
+	assert(
+		thread,
+		"Awaitable:await must be called from within a coroutine"
+	)
 
 	table.insert(self.waiters, thread)
 
