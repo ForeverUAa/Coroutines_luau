@@ -1,12 +1,23 @@
 local Awaitable = {}
 Awaitable.__index = Awaitable
 
-function Awaitable.new()
-    return setmetatable({
-        completed = false,
-        result = nil,
-        waiters = {},
-    }, Awaitable)
+export type Awaitable<T = any> = typeof(setmetatable({
+	completed = false :: boolean,
+	result = nil :: T?,
+	waiters = {} :: {thread},
+}, {
+	__index = {} :: {
+		resolve: (self: Awaitable<T>, value: T) -> (),
+		await: (self: Awaitable<T>) -> T,
+	}
+}))
+
+function Awaitable.new<T>(initialValue: T?): Awaitable<T>
+	return setmetatable({
+		completed = false,
+		result = initialValue,
+		waiters = {},
+	}, Awaitable)
 end
 
 function Awaitable:resolve(value)

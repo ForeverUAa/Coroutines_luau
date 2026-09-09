@@ -32,7 +32,7 @@ function Coroutine.yield(...)
 	return coroutine.yield(...)
 end
 
-function Coroutine.co_await(awaitable: Awaitable)
+function Coroutine.co_await<T>(awaitable: Awaitable.Awaitable<T>): T
 	assert(awaitable ~= nil, "Coroutine.co_await expects an Awaitable")
 
 	return coroutine.yield(awaitable)
